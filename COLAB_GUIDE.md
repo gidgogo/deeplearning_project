@@ -68,6 +68,51 @@ print('\n✅ 완료. 이제 Drive에서 SIDL_data 폴더를 나머지 4계정에
 
 ---
 
+## 셀 SETUP — 세션 시작 시 1번 (런타임 리셋되면 매번 다시)
+
+> 무료 Colab은 런타임이 리셋되면 /content(로컬)와 pip 설치가 사라진다.
+> Drive의 NAFNet, SIDL_data/*.tar 는 안전하므로 아래로 빠르게 복구한다.
+
+```python
+from google.colab import drive
+drive.mount('/content/drive')
+
+import os, shutil, subprocess, time
+DRIVE = '/content/drive/MyDrive'
+
+# 1) 의존성 재설치 + NAFNet develop
+%cd /content/drive/MyDrive/NAFNet
+!pip -q install -r requirements.txt
+!pip -q install --upgrade --no-cache-dir gdown calflops
+!python3 setup.py develop --no_cuda_ext
+
+# 2) 우리 코드 주입
+OURS = '/content/sidl_project'
+if os.path.isdir(OURS): shutil.rmtree(OURS)
+!git clone -q https://github.com/gidgogo/deeplearning_project.git {OURS}
+!cp {OURS}/ext/sidl_multitask_dataset.py /content/drive/MyDrive/NAFNet/basicsr/data/
+os.makedirs(f'{DRIVE}/sidl_options', exist_ok=True)
+!cp {OURS}/configs/*.yml {DRIVE}/sidl_options/
+
+# 3) 데이터 로컬 전개 (Drive SIDL_data/*.tar -> /content/data)
+os.makedirs('/content/data', exist_ok=True)
+t0 = time.time()
+for name in ['train', 'val']:
+    if not os.path.isdir(f'/content/data/{name}'):
+        subprocess.run(['cp', f'{DRIVE}/SIDL_data/{name}.tar', f'/content/{name}.tar'], check=True)
+        subprocess.run(['tar', 'xf', f'/content/{name}.tar', '-C', '/content/data'], check=True)
+        os.remove(f'/content/{name}.tar')
+print('데이터 준비:', round(time.time()-t0), 's | train:', os.listdir('/content/data/train'))
+print('✅ 세션 셋업 완료')
+```
+
+> 최초 1회만: NAFNet repo clone (셀 2). 이미 Drive에 있으면 생략됨.
+> SETUP 후 바로 셀 R(아래)로 학습/이어학습 가능.
+
+---
+
+## (참고) 개별 셀 — 위 SETUP에 모두 포함됨
+
 ## 셀 1 — Drive 마운트 (세션마다)
 
 ```python
