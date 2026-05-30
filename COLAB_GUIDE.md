@@ -86,11 +86,21 @@ DRIVE = '/content/drive/MyDrive'
 !pip -q install --upgrade --no-cache-dir gdown calflops
 !python3 setup.py develop --no_cuda_ext
 
-# 2) 우리 코드 주입
+# 2) 우리 코드 주입 (dataset + frequency loss + configs)
 OURS = '/content/sidl_project'
 if os.path.isdir(OURS): shutil.rmtree(OURS)
 !git clone -q https://github.com/gidgogo/deeplearning_project.git {OURS}
-!cp {OURS}/ext/sidl_multitask_dataset.py /content/drive/MyDrive/NAFNet/basicsr/data/
+NAF = '/content/drive/MyDrive/NAFNet'
+!cp {OURS}/ext/sidl_multitask_dataset.py {NAF}/basicsr/data/
+# frequency loss 주입 (config C/E) + losses __init__ 패치 (멱등)
+LOSSES = f'{NAF}/basicsr/models/losses'
+assert os.path.isdir(LOSSES), f'losses dir 없음: {LOSSES}'
+!cp {OURS}/ext/freq_loss.py {LOSSES}/
+_init = f'{LOSSES}/__init__.py'
+_src = open(_init).read()
+if 'freq_loss' not in _src:
+    open(_init, 'a').write('\nfrom .freq_loss import PSNRFFTLoss, FFTLoss, PSNRSSIMLoss\n')
+    print('patched losses/__init__.py')
 os.makedirs(f'{DRIVE}/sidl_options', exist_ok=True)
 !cp {OURS}/configs/*.yml {DRIVE}/sidl_options/
 
@@ -178,9 +188,12 @@ print('데이터 준비 완료', round(time.time() - t0), 's')
 EXP = 'A'   # 계정마다 A/B/C/D/E 중 하나
 
 import os, re, glob
+OPT = '/content/drive/MyDrive/sidl_options'
 TEMPLATES = {
-    'A': '/content/drive/MyDrive/sidl_options/SIDL_allinone_A_baseline.yml',
-    # B, C, D, E 는 다음 단계에서 추가
+    'A': f'{OPT}/SIDL_allinone_A_baseline.yml',
+    'B': f'{OPT}/SIDL_allinone_B_aug.yml',
+    'C': f'{OPT}/SIDL_allinone_C_freq.yml',
+    # D, E 는 다음 단계에서 추가
 }
 template_path = TEMPLATES[EXP]
 runtime_path = f'/content/drive/MyDrive/sidl_options/_runtime_{EXP}.yml'
