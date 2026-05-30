@@ -1,0 +1,87 @@
+# ------------------------------------------------------------------------
+# Config E — All combined: synth aug (B) + frequency loss (C) + FiLM cond (D).
+#   datasets.train.synth_aug = true
+#   pixel_opt = PSNRFFTLoss
+#   model_type = SIDLCondModel, network = NAFNetFiLMLocal
+# Requires all ext/* injected (dataset, freq_loss, film arch, cond model).
+# ------------------------------------------------------------------------
+
+name: SIDL-allinone-E-all-w32
+model_type: SIDLCondModel
+scale: 1
+num_gpu: 1
+manual_seed: 42
+
+path:
+  root: /content/drive/MyDrive/NAFNet
+  pretrain_network_g: ~
+  strict_load_g: true
+  resume_state: ~
+
+datasets:
+  train:
+    name: sidl-allinone-train
+    type: SIDLMultiTaskDataset
+    dataroot: /content/data/train
+    tasks: [finger, dust, water, scratch]
+    synth_aug: true          # (B)
+    gt_size: 64
+    use_flip: true
+    use_rot: true
+    use_shuffle: true
+    num_worker_per_gpu: 2
+    batch_size_per_gpu: 8
+    io_backend:
+      type: disk
+  val:
+    name: sidl-allinone-val-medium
+    type: SIDLMultiTaskDataset
+    dataroot: /content/data/val
+    tasks: [finger, dust, water, scratch]
+    difficulty: medium
+    io_backend:
+      type: disk
+
+network_g:
+  type: NAFNetFiLMLocal       # (D)
+  width: 32
+  enc_blk_nums: [1, 1, 1, 8]
+  middle_blk_num: 1
+  dec_blk_nums: [1, 1, 1, 1]
+  num_types: 6
+  emb_dim: 64
+
+train:
+  optim_g:
+    type: AdamW
+    lr: !!float 1e-3
+    weight_decay: !!float 1e-3
+    betas: [0.9, 0.9]
+  scheduler:
+    type: TrueCosineAnnealingLR
+    T_max: 100000
+    eta_min: !!float 1e-7
+  total_iter: 100000
+  warmup_iter: -1
+  pixel_opt:
+    type: PSNRFFTLoss         # (C)
+    loss_weight: 1
+    reduction: mean
+    fft_weight: !!float 0.05
+
+val:
+  val_freq: !!float 5000
+  save_img: false
+  metrics:
+    psnr: {type: calculate_psnr, crop_border: 0, test_y_channel: false}
+    ssim: {type: calculate_ssim, crop_border: 0, test_y_channel: false}
+
+logger:
+  print_freq: !!float 100
+  save_checkpoint_freq: !!float 2500
+  use_tb_logger: true
+  wandb: {project: ~, resume_id: ~}
+
+dist_params:
+  backend: nccl
+  port: 29500

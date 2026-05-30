@@ -108,6 +108,9 @@ _src = open(_init).read()
 if 'freq_loss' not in _src:
     open(_init, 'a').write('\nfrom .freq_loss import PSNRFFTLoss, FFTLoss, PSNRSSIMLoss\n')
     print('patched losses/__init__.py')
+# degradation-aware FiLM arch (config D/E) + cond model (auto-imported by suffix)
+!cp {OURS}/ext/nafnet_film_arch.py {NAF}/basicsr/models/archs/
+!cp {OURS}/ext/sidl_cond_model.py {NAF}/basicsr/models/
 os.makedirs(f'{DRIVE}/sidl_options', exist_ok=True)
 !cp {OURS}/configs/*.yml {DRIVE}/sidl_options/
 
@@ -200,7 +203,8 @@ TEMPLATES = {
     'A': f'{OPT}/SIDL_allinone_A_baseline.yml',
     'B': f'{OPT}/SIDL_allinone_B_aug.yml',
     'C': f'{OPT}/SIDL_allinone_C_freq.yml',
-    # D, E 는 다음 단계에서 추가
+    'D': f'{OPT}/SIDL_allinone_D_cond.yml',
+    'E': f'{OPT}/SIDL_allinone_E_all.yml',
 }
 template_path = TEMPLATES[EXP]
 runtime_path = f'/content/drive/MyDrive/sidl_options/_runtime_{EXP}.yml'
