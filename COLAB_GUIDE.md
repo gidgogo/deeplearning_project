@@ -75,10 +75,17 @@ print('\n✅ 완료. 이제 Drive에서 SIDL_data 폴더를 나머지 4계정에
 
 ```python
 from google.colab import drive
-drive.mount('/content/drive')
+drive.mount('/content/drive', force_remount=True)
 
 import os, shutil, subprocess, time
+os.chdir('/content')
 DRIVE = '/content/drive/MyDrive'
+
+# NAFNet 없으면 clone (새 계정 대응)
+if not os.path.isdir(f'{DRIVE}/NAFNet'):
+    print('NAFNet clone...'); os.system('cd /content/drive/MyDrive && git clone https://github.com/megvii-research/NAFNet')
+assert os.path.isdir(f'{DRIVE}/SIDL_data'), \
+    'SIDL_data 없음 — 메인 계정에서 공유 후 "내 드라이브에 바로가기 추가" 필요'
 
 # 1) 의존성 재설치 + NAFNet develop
 %cd /content/drive/MyDrive/NAFNet
