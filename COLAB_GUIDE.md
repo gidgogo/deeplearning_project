@@ -17,7 +17,10 @@ tasks: clean dust finger mixed scratch water  /  우리 학습엔 finger dust wa
 
 ---
 
-## 셀 P — (메인 계정에서 1회만) 데이터 준비: 분할 tar 합치고 4개 학습타입만 경량 재패키징
+## 셀 P — (메인 계정에서 1회만) 데이터 준비: 스트리밍 합치기로 4개 학습타입만 추출
+
+> ⚠️ 디스크 절약형. 거대한 train_full.tar를 만들지 않고, 분할 tar를 스트리밍으로
+> 합치면서 필요한 4개 타입(finger/dust/water/scratch)만 바로 추출한다.
 
 ```python
 from google.colab import drive
@@ -25,39 +28,41 @@ drive.mount('/content/drive')
 
 import os, glob, shutil, subprocess
 DRIVE = '/content/drive/MyDrive'
+TASKS = ['finger', 'dust', 'water', 'scratch']
 os.makedirs('/content/data', exist_ok=True)
 os.makedirs(f'{DRIVE}/SIDL_data', exist_ok=True)
-TASKS = ['finger', 'dust', 'water', 'scratch']
 
-# 1) train_patch 분할 tar 합치기 (base .tar 가 정렬상 맨 앞 -> 순서 안전)
+# 1) 분할 tar를 cat 으로 스트리밍하며 필요한 4개 타입만 추출 (full tar 미저장)
 tp = f'{DRIVE}/train_patch'
-parts = sorted(glob.glob(f'{tp}/train_patch.tar*'))
-print('합칠 조각:', [os.path.basename(p) for p in parts])
-with open('/content/train_full.tar', 'wb') as out:
-    for p in parts:
-        with open(p, 'rb') as f:
-            shutil.copyfileobj(f, out, length=32 * 1024 * 1024)
-print('합치기 완료. 내부 경로 확인:')
-subprocess.run('tar tf /content/train_full.tar | head -3', shell=True)
+parts = sorted(glob.glob(f'{tp}/train_patch.tar*'))   # base .tar 가 정렬상 맨 앞 -> 순서 안전
+print('조각:', [os.path.basename(p) for p in parts])
+files = ' '.join(f'"{p}"' for p in parts)
+members = ' '.join(f'home/oem/dataset_final/patch/train/{t}' for t in TASKS)
+cmd = f'cat {files} | tar xf - -C /content/data --strip-components=4 {members}'
+print('train 4개 타입 추출 중 (스트리밍)...')
+subprocess.run(cmd, shell=True, check=True)
+print('train 완료:', os.listdir('/content/data/train'))
 
-# 2) 전체 추출(strip 4 -> train/<task>/...) 후 4개 타입만 재패키징
-subprocess.run(['tar', 'xf', '/content/train_full.tar', '-C', '/content/data',
-                '--strip-components=4'], check=True)
-keep = [f'train/{t}' for t in TASKS]
-subprocess.run(['tar', 'cf', '/content/train.tar', '-C', '/content/data'] + keep, check=True)
-shutil.move('/content/train.tar', f'{DRIVE}/SIDL_data/train.tar')
-os.remove('/content/train_full.tar')
-
-# 3) val_patch -> 그대로 전개 후 재패키징 (모든 task/difficulty 포함)
+# 2) val_patch 전개 (작음, 모든 task/difficulty 포함)
 subprocess.run(['tar', 'xf', f'{DRIVE}/val_patch.tar', '-C', '/content/data',
                 '--strip-components=4'], check=True)
+print('val 완료:', os.listdir('/content/data/val'))
+
+# 3) 공유/재사용용 재패키징 -> Drive 저장
+subprocess.run(['tar', 'cf', '/content/train.tar', '-C', '/content/data', 'train'], check=True)
+shutil.move('/content/train.tar', f'{DRIVE}/SIDL_data/train.tar')
 subprocess.run(['tar', 'cf', '/content/val.tar', '-C', '/content/data', 'val'], check=True)
 shutil.move('/content/val.tar', f'{DRIVE}/SIDL_data/val.tar')
-
 for f in ['train.tar', 'val.tar']:
     print(f'SIDL_data/{f}: {os.path.getsize(f"{DRIVE}/SIDL_data/{f}")/1e9:.2f} GB')
 print('\n✅ 완료. 이제 Drive에서 SIDL_data 폴더를 나머지 4계정에 공유하세요.')
 ```
+> 디스크가 이전 시도로 차 있으면 먼저 정리:
+> ```python
+> import shutil, os
+> for p in ['/content/train_full.tar','/content/data','/content/train.tar','/content/val.tar']:
+>     (os.remove(p) if os.path.isfile(p) else shutil.rmtree(p)) if os.path.exists(p) else None
+> ```
 > 끝나면: Drive 웹에서 `SIDL_data` 우클릭 → 공유 → 나머지 4계정 이메일 추가(뷰어 OK).
 > 각 계정은 공유 링크 열어 **"내 드라이브에 바로가기 추가"**.
 
